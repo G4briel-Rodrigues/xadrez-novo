@@ -22,7 +22,7 @@
         .emoji-bg { position: absolute; font-size: 1.5rem; opacity: 0.1; animation: float 12s linear infinite; pointer-events: none; z-index: -1; }
         @keyframes float { 0% { transform: translateY(110vh); } 100% { transform: translateY(-10vh); } }
 
-        /* Animação de Shake (Treme Tela) */
+        /* Animação de Shake */
         .shake { animation: shake 0.5s; }
         @keyframes shake {
             0% { transform: translate(1px, 1px) rotate(0deg); }
@@ -43,7 +43,7 @@
         }
         .rank-leader { color: var(--gold); text-shadow: 0 0 8px var(--gold); font-weight: bold; }
 
-        /* --- CHAT TURBO NEON --- */
+        /* Chat */
         #chat-container {
             position: absolute; right: 3%; top: 50%; transform: translateY(-50%);
             width: 380px; height: 600px; background: rgba(0,0,0,0.98);
@@ -70,7 +70,7 @@
             font-family: 'Courier New', monospace; font-size: 15px;
         }
 
-        /* Painel de Histórico */
+        /* Painel Histórico */
         #history-panel {
             height: 100px; border-top: 1px solid #333; background: #050505;
             padding: 10px; overflow-y: auto; font-size: 12px; color: #888;
@@ -84,10 +84,9 @@
         }
         .server-select-label { display: block; margin-top: 15px; font-weight: bold; color: var(--gold); }
 
-        /* Área do Jogo */
+        /* Jogo */
         #game-screen { display: none; flex-direction: column; align-items: center; }
         
-        /* Timers (Relógio) */
         #timers-container {
             display: flex; justify-content: space-between; width: 540px; margin-bottom: 10px;
         }
@@ -101,7 +100,6 @@
 
         .info-panel { margin-bottom: 10px; text-align: center; }
         
-        /* Tabuleiro */
         .board { 
             display: grid; grid-template-columns: repeat(8, 65px); grid-template-rows: repeat(8, 65px); 
             border: 6px solid #222; box-shadow: 0 0 60px rgba(255,0,0,0.2);
@@ -116,7 +114,7 @@
         .p-w { color: var(--white); text-shadow: 0 0 5px #fff; }
         .p-b { color: var(--red); text-shadow: 0 0 5px #f00; }
 
-        /* Modal Fim de Jogo */
+        /* Modal */
         #game-over-modal {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.9); z-index: 1000;
@@ -153,7 +151,7 @@
         <div id="chat-content">
             <div id="chat-messages"></div>
         </div>
-        <div id="history-panel">📜 CRÔNICA:<br><span id="move-history"></span></div>
+        <div id="history-panel">📜 CRÔNICA:<br><span id="move-history" style="color:#888; font-size:10px;">...</span></div>
         <input type="text" id="chat-input" placeholder="Sussurre para o vazio..." autocomplete="off">
     </div>
 
@@ -180,19 +178,19 @@
 
         <div class="info-panel">
             <div id="identity" style="font-size: 1.5rem; letter-spacing: 2px;"></div>
-            <div id="turn-indicator" style="font-size: 1rem; margin-top: 8px;"></div>
+            <div id="turn-indicator" style="font-size: 1rem; margin-top: 8px;">Aguardando oponente...</div>
         </div>
         <div class="board" id="board"></div>
     </div>
 
     <script>
         const socket = io();
-        const game = new Chess();
+        const game = new Chess(); // Instância local para validação visual
         let myColor = null, myChannel = null, myNick = null;
         let selectedSquare = null, boardOrientation = 'white';
         let isSpectator = false;
 
-        // Configuração dos Sons
+        // Efeitos Sonoros
         const sounds = {
             move: new Audio('move.mp3'),
             capture: new Audio('capture.mp3'),
@@ -203,7 +201,7 @@
 
         const pieceMap = { 'p':'♟','r':'♜','n':'♞','b':'♝','q':'♛','k':'♚','P':'♙','R':'♖','N':'♘','B':'♗','Q':'♕','K':'♔' };
 
-        // Efeito de fundo
+        // Animação Fundo
         setInterval(() => {
             const e = document.createElement('div'); e.className = 'emoji-bg';
             e.style.left = Math.random() * 100 + 'vw';
@@ -219,9 +217,7 @@
             if (!nick) return alert("Diga seu nome!");
             myNick = nick;
             socket.emit('entrar', { apelido: nick, senha: pass, canal: channel });
-            
-            // Tenta dar play no som ambiente
-            sounds.ambient.play().catch(e => console.log("Áudio aguardando interação"));
+            sounds.ambient.play().catch(e => {}); 
         }
 
         socket.on('logado', (data) => {
@@ -251,7 +247,7 @@
 
         socket.on('erro', (msg) => alert(msg));
 
-        // Chat Logic
+        // Chat
         const chatInput = document.getElementById('chat-input');
         chatInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && chatInput.value.trim() !== "") {
@@ -268,7 +264,7 @@
             chatMsgs.scrollTop = chatMsgs.scrollHeight;
         });
 
-        // Game Update Logic
+        // Lógica do Jogo
         socket.on('iniciar_jogo', (data) => { 
             game.load(data.fen); 
             document.getElementById('game-over-modal').style.display = 'none';
@@ -291,7 +287,6 @@
                     sounds.move.play().catch(()=>{});
                 }
             }
-
             updateStatus(); 
             renderBoard(data.lastMove);
             updateHistory();
@@ -328,9 +323,7 @@
             sounds.win.play().catch(()=>{});
         });
         
-        socket.on('atualizar_ranking', (ranking) => {
-            updateRankingUI(ranking);
-        });
+        socket.on('atualizar_ranking', (ranking) => updateRankingUI(ranking));
 
         function requestRematch() {
             socket.emit('pedir_revanche', { canal: myChannel });
@@ -351,12 +344,13 @@
 
         function updateHistory() {
             const history = game.history();
-            document.getElementById('move-history').innerText = history.join(' | ');
+            document.getElementById('move-history').innerText = history.join(' | ') || "O silêncio reina.";
         }
 
         function renderBoard(lastMove = null) {
             const boardEl = document.getElementById('board');
             boardEl.innerHTML = '';
+            
             const rows = (boardOrientation === 'white') ? [8,7,6,5,4,3,2,1] : [1,2,3,4,5,6,7,8];
             const cols = (boardOrientation === 'white') ? ['a','b','c','d','e','f','g','h'] : ['h','g','f','e','d','c','b','a'];
 
@@ -365,35 +359,63 @@
                     const sqId = c + r;
                     const piece = game.get(sqId);
                     const div = document.createElement('div');
+                    
                     div.className = `sq ${("abcdefgh".indexOf(c) + r) % 2 === 0 ? 'dark' : 'light'}`;
+                    
                     if (lastMove && (lastMove.from === sqId || lastMove.to === sqId)) div.classList.add('last-move');
                     if (selectedSquare === sqId) div.classList.add('selected');
 
                     if (!isSpectator) {
+                        // Lógica de Movimento (Se clicou numa casa válida para mover a peça selecionada)
                         if (selectedSquare) {
-                            const move = game.moves({ square: selectedSquare, verbose: true }).find(m => m.to === sqId);
+                            const possibleMoves = game.moves({ square: selectedSquare, verbose: true });
+                            const move = possibleMoves.find(m => m.to === sqId);
                             if (move) {
                                 div.classList.add('hint');
-                                div.onclick = () => { socket.emit('movimento', { canal: myChannel, from: selectedSquare, to: sqId, cor: myColor, apelido: myNick }); selectedSquare = null; };
+                                div.onclick = () => { 
+                                    // Envia movimento para o servidor
+                                    socket.emit('movimento', { 
+                                        canal: myChannel, 
+                                        from: selectedSquare, 
+                                        to: sqId, 
+                                        cor: myColor, 
+                                        apelido: myNick 
+                                    }); 
+                                    selectedSquare = null; 
+                                    // Não renderiza imediatamente, espera o servidor confirmar
+                                };
                             }
                         }
+
+                        // Lógica de Seleção (Clicar na própria peça)
                         if (piece) {
-                            div.innerText = pieceMap[piece.color === 'w' ? piece.type.toUpperCase() : piece.type];
+                            const pieceChar = pieceMap[piece.color === 'w' ? piece.type.toUpperCase() : piece.type];
+                            div.innerText = pieceChar || '?';
                             div.classList.add(piece.color === 'w' ? 'p-w' : 'p-b');
-                            if (!div.onclick) div.onclick = () => { 
-                                if (piece.color === myColor && game.turn() === myColor) { 
-                                    selectedSquare = sqId; 
-                                    renderBoard(); 
-                                } 
-                            };
+                            
+                            // Só adiciona clique de seleção se não for um clique de captura (já definido acima)
+                            if (!div.onclick) {
+                                div.onclick = () => { 
+                                    if (piece.color === myColor && game.turn() === myColor) { 
+                                        selectedSquare = (selectedSquare === sqId) ? null : sqId; // Toggle select
+                                        renderBoard(); 
+                                    } 
+                                };
+                            }
                         }
+                    } else if (piece) {
+                        // Espectador só vê
+                        div.innerText = pieceMap[piece.color === 'w' ? piece.type.toUpperCase() : piece.type];
+                        div.classList.add(piece.color === 'w' ? 'p-w' : 'p-b');
                     }
+
                     boardEl.appendChild(div);
                 }
             }
         }
 
         function updateRankingUI(ranking) {
+            if(!ranking) return;
             document.getElementById('ranking-list').innerHTML = ranking.map((u, i) => 
                 `<div style="margin-bottom:6px; color:#aaa;" class="${i === 0 ? 'rank-leader' : ''}">
                     ${i+1}. <span>${u.nick}</span> 
