@@ -6,7 +6,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        :root { --red: #ff0000; --gold: #ffd700; --white: #e0e0e0; --bg: #050000; }
+        :root { --red: #ff0000; --gold: #ffd700; --white: #e0e0e0; --bg: #050000; --neon-green: #39FF14; }
         body {
             background: var(--bg); color: var(--red); 
             font-family: 'Courier New', monospace; margin: 0; height: 100vh; 
@@ -18,13 +18,12 @@
         .emoji-bg { position: absolute; font-size: 1.5rem; opacity: 0.1; animation: float 12s linear infinite; pointer-events: none; z-index: -1; }
         @keyframes float { 0% { transform: translateY(110vh); } 100% { transform: translateY(-10vh); } }
 
-        /* Ranking Lateral Compacto */
+        /* Ranking Lateral */
         #ranking-box { 
             position: absolute; left: 10px; top: 10px; width: 160px; 
             background: rgba(10,0,0,0.9); padding: 10px; border: 1px solid #400;
             font-size: 11px; z-index: 100; border-radius: 4px;
         }
-        .leader { color: var(--gold); text-shadow: 0 0 5px var(--gold); font-weight: bold; display: block; margin-top: 2px; }
 
         /* Login */
         .login-box { 
@@ -36,7 +35,7 @@
         #game-screen { display: none; flex-direction: column; align-items: center; }
         .info-panel { margin-bottom: 10px; text-align: center; }
         
-        /* Tabuleiro Profissional */
+        /* Tabuleiro */
         .board { 
             display: grid; grid-template-columns: repeat(8, 60px); grid-template-rows: repeat(8, 60px); 
             border: 5px solid #222; box-shadow: 0 0 50px #200;
@@ -45,37 +44,50 @@
             width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; 
             font-size: 40px; cursor: pointer; position: relative;
         }
-        /* Cores do Tabuleiro */
         .sq.light { background: #2a2a2a; }
         .sq.dark { background: #110000; }
-        
-        /* Efeitos Visuais */
         .sq:hover { background: #331111; }
         .selected { background: #554400 !important; }
         .last-move { background: rgba(255, 255, 0, 0.2) !important; }
         
-        /* Dica de movimento (bolinha) */
-        .hint::after {
-            content: ''; width: 15px; height: 15px; background: rgba(0, 255, 0, 0.3);
-            border-radius: 50%; position: absolute;
-        }
-        .capture-hint::after {
-            content: ''; width: 50px; height: 50px; border: 4px solid rgba(255, 0, 0, 0.4);
-            border-radius: 50%; position: absolute; background: transparent;
-        }
+        .hint::after { content: ''; width: 15px; height: 15px; background: rgba(0, 255, 0, 0.3); border-radius: 50%; position: absolute; }
+        .capture-hint::after { content: ''; width: 50px; height: 50px; border: 4px solid rgba(255, 0, 0, 0.4); border-radius: 50%; position: absolute; }
 
-        /* Peças */
         .p-w { color: var(--white); text-shadow: 0 0 5px #fff; }
         .p-b { color: var(--red); text-shadow: 0 0 5px #f00; }
 
+        /* MODAL DE XEQUE-MATE (NEON) */
+        #game-over-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 1000;
+            flex-direction: column; align-items: center; justify-content: center;
+            text-align: center;
+        }
+        #modal-message {
+            color: var(--neon-green); font-size: 2.5rem; font-weight: bold;
+            text-shadow: 0 0 10px var(--neon-green), 0 0 20px var(--neon-green), 0 0 40px #00ff00;
+            margin-bottom: 20px; padding: 0 20px;
+        }
+        #modal-btn {
+            background: transparent; border: 2px solid var(--neon-green);
+            color: var(--neon-green); padding: 10px 30px; font-size: 1.2rem;
+            cursor: pointer; box-shadow: 0 0 10px var(--neon-green);
+            transition: 0.3s;
+        }
+        #modal-btn:hover { background: var(--neon-green); color: #000; }
+
         input, select, button { width: 100%; padding: 10px; margin: 5px 0; background: #111; border: 1px solid #333; color: #fff; }
         button { background: var(--red); color: #000; font-weight: bold; cursor: pointer; border: none; }
-        button:hover { filter: brightness(1.2); }
     </style>
 </head>
 <body>
     <div id="emojis"></div>
     
+    <div id="game-over-modal">
+        <div id="modal-message">XEQUE-MATE!</div>
+        <button id="modal-btn" onclick="location.reload()">REINICIAR DESTINO</button>
+    </div>
+
     <div id="ranking-box">
         <strong style="color:#fff">🏆 ABISMO</strong><hr style="border:0; border-top:1px solid #333">
         <div id="ranking-list">Carregando...</div>
@@ -103,19 +115,17 @@
 
     <script>
         const socket = io();
-        const game = new Chess(); // Lógica local para validação visual rápida
-        let myColor = null; // 'w' ou 'b'
+        const game = new Chess();
+        let myColor = null;
         let myChannel = null;
         let selectedSquare = null;
-        let boardOrientation = 'white'; // Para girar o tabuleiro
+        let boardOrientation = 'white';
 
-        // Mapa de Peças para Emojis
         const pieceMap = {
-            'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚', // Pretas
-            'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔'  // Brancas
+            'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚',
+            'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔'
         };
 
-        // --- SISTEMA DE EMOJIS DE FUNDO ---
         setInterval(() => {
             const e = document.createElement('div'); e.className = 'emoji-bg';
             e.style.left = Math.random() * 100 + 'vw';
@@ -124,7 +134,6 @@
             setTimeout(() => e.remove(), 12000);
         }, 800);
 
-        // --- LOGIN ---
         function entrar() {
             const nick = document.getElementById('nick').value;
             const pass = document.getElementById('pass').value;
@@ -137,21 +146,17 @@
             myColor = data.cor;
             myChannel = data.canal;
             boardOrientation = (myColor === 'w') ? 'white' : 'black';
-            
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('game-screen').style.display = 'flex';
             
             const idDiv = document.getElementById('identity');
-            idDiv.innerText = myColor === 'w' ? "VOCÊ É A LUZ (BRANCAS)" : "VOCÊ É A ESCURIDÃO (PRETAS)";
+            // Texto alterado conforme pedido
+            idDiv.innerText = myColor === 'w' ? "VOCÊ É A LUZ" : "VOCÊ É A ESCURIDÃO";
             idDiv.style.color = myColor === 'w' ? 'var(--white)' : 'var(--red)';
             
             updateRankingUI(data.ranking);
             renderBoard();
         });
-
-        socket.on('erro', (msg) => alert(msg));
-        
-        // --- LÓGICA DO JOGO ---
 
         socket.on('iniciar_jogo', (data) => {
             game.load(data.fen);
@@ -160,22 +165,24 @@
         });
 
         socket.on('atualizar_tabuleiro', (data) => {
-            game.load(data.fen); // Sincroniza o estado oficial
+            game.load(data.fen);
             selectedSquare = null;
             updateStatus();
             renderBoard(data.lastMove);
         });
 
+        // Evento de fim de jogo com o Modal Neon Verde
         socket.on('fim_jogo', (data) => {
-            alert(data.msg);
-            location.reload();
+            const modal = document.getElementById('game-over-modal');
+            const msgEl = document.getElementById('modal-message');
+            msgEl.innerText = data.msg;
+            modal.style.display = 'flex';
         });
 
         function updateStatus() {
             const turnText = (game.turn() === 'w') ? "Vez das BRANCAS" : "Vez das PRETAS";
             const myTurn = (game.turn() === myColor);
             const statusDiv = document.getElementById('turn-indicator');
-            
             if (game.in_check()) {
                 statusDiv.innerHTML = `<span style="color:orange">⚠️ XEQUE!</span> ${turnText}`;
             } else {
@@ -184,36 +191,24 @@
             statusDiv.style.color = myTurn ? "#0f0" : "#888";
         }
 
-        // --- RENDERIZAÇÃO ---
         function renderBoard(lastMove = null) {
             const boardEl = document.getElementById('board');
             boardEl.innerHTML = '';
-
-            // Se eu sou preto, inverto a visualização do tabuleiro
             const rows = (boardOrientation === 'white') ? [8,7,6,5,4,3,2,1] : [1,2,3,4,5,6,7,8];
             const cols = (boardOrientation === 'white') ? ['a','b','c','d','e','f','g','h'] : ['h','g','f','e','d','c','b','a'];
 
             for (let r of rows) {
                 for (let c of cols) {
-                    const squareId = c + r; // ex: 'e4'
+                    const squareId = c + r;
                     const pieceObj = game.get(squareId);
                     const div = document.createElement('div');
-                    
-                    // Cor da casa (Lógica matemática de xadrez para cor do quadrado)
-                    // Converto letras para numeros para calcular paridade
                     const colIdx = "abcdefgh".indexOf(c);
                     const isDark = (colIdx + r) % 2 === 0;
                     div.className = `sq ${isDark ? 'dark' : 'light'}`;
                     
-                    // Se for o último movimento, destaca
-                    if (lastMove && (lastMove.from === squareId || lastMove.to === squareId)) {
-                        div.classList.add('last-move');
-                    }
-
-                    // Se estiver selecionado
+                    if (lastMove && (lastMove.from === squareId || lastMove.to === squareId)) div.classList.add('last-move');
                     if (selectedSquare === squareId) div.classList.add('selected');
 
-                    // Dicas de movimento (bolinhas)
                     if (selectedSquare) {
                         const moves = game.moves({ square: selectedSquare, verbose: true });
                         const move = moves.find(m => m.to === squareId);
@@ -223,15 +218,11 @@
                         }
                     }
 
-                    // Renderiza a peça
                     if (pieceObj) {
-                        // Mapeia w/b para Maiúscula/Minúscula para pegar o emoji certo
                         const key = pieceObj.color === 'w' ? pieceObj.type.toUpperCase() : pieceObj.type;
                         div.innerText = pieceMap[key];
                         div.classList.add(pieceObj.color === 'w' ? 'p-w' : 'p-b');
-                        
-                        // Clique na peça (somente se for minha e minha vez)
-                        if (!div.onclick) { // Se não for um alvo de movimento
+                        if (!div.onclick) {
                             div.onclick = () => {
                                 if (pieceObj.color === myColor && game.turn() === myColor) {
                                     selectedSquare = (selectedSquare === squareId) ? null : squareId;
@@ -240,33 +231,28 @@
                             };
                         }
                     } else if (!div.onclick && selectedSquare) {
-                        // Clique no vazio para deselecionar
                         div.onclick = () => { selectedSquare = null; renderBoard(lastMove); };
                     }
-
                     boardEl.appendChild(div);
                 }
             }
         }
 
         function sendMove(from, to) {
-            // Valida localmente primeiro para UI rápida
             const move = game.move({ from, to, promotion: 'q' });
             if (move) {
-                // Envia para o servidor validar de verdade
                 socket.emit('movimento', { canal: myChannel, from, to, cor: myColor });
-                renderBoard(); // Re-renderiza local
+                renderBoard();
             }
         }
 
-        // --- RANKING ---
         socket.on('atualizar_ranking', updateRankingUI);
         function updateRankingUI(ranking) {
             const list = document.getElementById('ranking-list');
+            // Removido o Rei Demônio
             list.innerHTML = ranking.map((u, i) => 
                 `<div style="margin-bottom:5px; border-bottom:1px solid #222; padding-bottom:2px;">
                     <span style="color:#888">${i+1}.</span> ${u.nick} <span style="float:right; color:#ccc">${u.wins}</span>
-                    ${i === 0 ? '<span class="leader">REI DEMÔNIO</span>' : ''}
                 </div>`
             ).join('');
         }
