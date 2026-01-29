@@ -1,156 +1,179 @@
 const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
+const app = express();
+const http = require('http').createServer(app);
+const io = require('socket.io')(http);
+const fs = require('fs');
 const { Chess } = require('chess.js');
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+const DB_PATH = './database.json';
+let users = {};
 
-app.use(express.static(__dirname + '/public'));
+// Carrega o banco de dados
+if (fs.existsSync(DB_PATH)) {
+    try { users = JSON.parse(fs.readFileSync(DB_PATH, 'utf8')); } catch (e) { users = {}; }
+}
+function saveDB() { fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2)); }
 
-const rooms = {};
-let ranking = []; // Armazena os vencedores
+// Estrutura das Salas (Universos) - ALTERADO PARA 900s
+const rooms = {
+    "SubMundo": { players: [], game: null, timer: null, times: { w: 900, b: 900 }, rematch: [] },
+    "Recanto dos pecadores": { players: [], game: null, timer: null, times: { w: 900, b: 900 }, rematch: [] },
+    "Vozes sem fim": { players: [], game: null, timer: null, times: { w: 900, b: 900 }, rematch: [] },
+    "Solidão": { players: [], game: null, timer: null, times: { w: 900, b: 900 }, rematch: [] }
+};
+
+app.use(express.static(__dirname));
+
+function getRanking() {
+    return Object.keys(users).map(nick => ({ nick, wins: users[nick].wins || 0 }))
+        .sort((a, b) => b.wins - a.wins).slice(0, 5);
+}
+
+function startTimer(canal) {
+    const room = rooms[canal];
+    if (room.timer) clearInterval(room.timer);
+
+    room.timer = setInterval(() => {
+        if (!room.game || room.game.isGameOver()) {
+            clearInterval(room.timer);
+            return;
+        }
+
+        const turn = room.game.turn(); 
+        room.times[turn]--;
+
+        io.to(canal).emit('sync_time', room.times);
+
+        if (room.times[turn] <= 0) {
+            clearInterval(room.timer);
+            const winnerColor = turn === 'w' ? 'b' : 'w';
+            const winnerPlayer = room.players.find(p => p.cor === winnerColor);
+            
+            let msg = "O TEMPO DE VIDA ACABOU.";
+            if (winnerPlayer) {
+                if(users[winnerPlayer.apelido]) {
+                    users[winnerPlayer.apelido].wins++;
+                    saveDB();
+                }
+                msg = `TEMPO ESGOTADO! Vitória de ${winnerPlayer.apelido}.`;
+            }
+            
+            io.emit('atualizar_ranking', getRanking());
+            io.to(canal).emit('fim_jogo', { msg });
+            room.game = null;
+        }
+    }, 1000);
+}
 
 io.on('connection', (socket) => {
-    console.log('Uma alma conectou: ' + socket.id);
-
     socket.on('entrar', (data) => {
-        const { apelido, canal } = data;
-        socket.join(canal);
-
-        if (!rooms[canal]) {
-            rooms[canal] = {
-                game: new Chess(),
-                players: [],
-                time: { w: 900, b: 900 }, // 15 MINUTOS (900 segundos)
-                timers: null,
-                rematchRequests: new Set()
-            };
-        }
-
+        const { apelido, senha, canal } = data;
         const room = rooms[canal];
 
-        // Lógica para ocupar as cores ou ser espectador
-        if (room.players.length < 2) {
-            const cor = room.players.length === 0 ? 'w' : 'b';
-            room.players.push({ id: socket.id, nick: apelido, cor });
-            
-            socket.emit('logado', { cor, canal, ranking });
-            
-            // Inicia o jogo quando o segundo jogador entra
-            if (room.players.length === 2) {
-                io.to(canal).emit('iniciar_jogo', { fen: room.game.fen() });
-                startTimer(canal);
-            }
+        if (!room) return socket.emit('erro', 'Universo inexistente.');
+
+        if (users[apelido]) {
+            if (users[apelido].senha !== senha) return socket.emit('erro', 'Senha incorreta.');
         } else {
-            // Entra como espectador
-            socket.emit('logado', { cor: 'spectator', canal, ranking });
-            socket.emit('iniciar_jogo', { fen: room.game.fen() });
+            users[apelido] = { senha, wins: 0 }; saveDB();
         }
-    });
 
-    socket.on('movimento', (data) => {
-        const room = rooms[data.canal];
-        if (!room) return;
+        socket.join(canal);
 
-        // Validação básica de turno
-        if (room.game.turn() !== data.cor) return;
-
-        const move = room.game.move({ from: data.from, to: data.to, promotion: 'q' });
+        let cor = 'spectator';
+        const activePlayers = room.players.filter(p => p.cor !== 'spectator');
         
-        if (move) {
-            io.to(data.canal).emit('atualizar_tabuleiro', { 
-                fen: room.game.fen(), 
-                lastMove: move 
-            });
-
-            if (room.game.game_over()) {
-                finalizarJogo(data.canal, room.game.in_checkmate() ? 'checkmate' : 'draw');
-            }
+        if (activePlayers.length < 2) {
+            const hasWhite = activePlayers.some(p => p.cor === 'w');
+            cor = hasWhite ? 'b' : 'w';
+            room.players.push({ id: socket.id, apelido, cor });
+        } else {
+            room.players.push({ id: socket.id, apelido, cor: 'spectator' });
+            socket.emit('erro', 'Sala cheia. Você entrou como FANTASMA (Espectador).');
         }
+
+        const playersNow = room.players.filter(p => p.cor !== 'spectator');
+        if (playersNow.length === 2 && !room.game) {
+            room.game = new Chess();
+            room.times = { w: 900, b: 900 }; // 15 minutos
+            room.rematch = [];
+            io.to(canal).emit('iniciar_jogo', { fen: room.game.fen() });
+            startTimer(canal);
+        } else if (room.game) {
+            socket.emit('iniciar_jogo', { fen: room.game.fen() });
+            socket.emit('sync_time', room.times);
+        }
+
+        socket.emit('logado', { apelido, cor, canal, ranking: getRanking() });
     });
 
     socket.on('enviar_msg', (data) => {
         io.to(data.canal).emit('receber_msg', data);
     });
 
+    socket.on('movimento', (data) => {
+        const room = rooms[data.canal];
+        if (!room || !room.game) return;
+        if (room.game.turn() !== data.cor) return;
+
+        try {
+            const move = room.game.move({ from: data.from, to: data.to, promotion: 'q' });
+            if (move) {
+                io.to(data.canal).emit('atualizar_tabuleiro', { fen: room.game.fen(), lastMove: move });
+                
+                if (room.game.isGameOver()) {
+                    clearInterval(room.timer);
+                    let msg = "EMPATE NA ESCURIDÃO.";
+                    
+                    if (room.game.isCheckmate()) {
+                        const winner = room.game.turn() === 'w' ? 'b' : 'w';
+                        const winnerObj = room.players.find(p => p.cor === winner);
+                        if (winnerObj) {
+                            users[winnerObj.apelido].wins++;
+                            saveDB();
+                            msg = `XEQUE-MATE! ${winnerObj.apelido} ceifou uma alma.`;
+                        }
+                    }
+                    io.emit('atualizar_ranking', getRanking());
+                    io.to(data.canal).emit('fim_jogo', { msg });
+                }
+            }
+        } catch (e) {}
+    });
+
     socket.on('pedir_revanche', (data) => {
         const room = rooms[data.canal];
         if (!room) return;
 
-        room.rematchRequests.add(socket.id);
-        
-        if (room.rematchRequests.size >= 2) {
-            // Reinicia tudo para 15 minutos
+        if (!room.rematch.includes(socket.id)) {
+            room.rematch.push(socket.id);
+        }
+
+        const activePlayers = room.players.filter(p => p.cor !== 'spectator');
+        io.to(data.canal).emit('revanche_solicitada', `Revanche: ${room.rematch.length}/${activePlayers.length} aceitaram.`);
+
+        if (room.rematch.length >= activePlayers.length && activePlayers.length === 2) {
             room.game = new Chess();
-            room.time = { w: 900, b: 900 };
-            room.rematchRequests.clear();
+            room.times = { w: 900, b: 900 }; // 15 minutos
+            room.rematch = [];
             io.to(data.canal).emit('iniciar_jogo', { fen: room.game.fen() });
-            startTimer(canal);
-        } else {
-            socket.to(data.canal).emit('revanche_solicitada', "O oponente quer revanche...");
+            startTimer(data.canal);
         }
     });
 
-    socket.on('disconnect', () => {
-        // Limpeza básica ao desconectar pode ser adicionada aqui
+    socket.on('disconnecting', () => {
+        for (const canal of socket.rooms) {
+            if (rooms[canal]) {
+                rooms[canal].players = rooms[canal].players.filter(player => player.id !== socket.id);
+                if (rooms[canal].players.filter(p => p.cor !== 'spectator').length < 2) {
+                    clearInterval(rooms[canal].timer);
+                    rooms[canal].game = null;
+                    io.to(canal).emit('erro', 'Oponente desconectou. O universo colapsou.');
+                }
+            }
+        }
     });
 });
 
-function startTimer(canal) {
-    const room = rooms[canal];
-    if (room.timers) clearInterval(room.timers);
-
-    room.timers = setInterval(() => {
-        const turno = room.game.turn();
-        room.time[turno]--;
-
-        io.to(canal).emit('sync_time', room.time);
-
-        if (room.time[turno] <= 0) {
-            finalizarJogo(canal, 'timeout');
-        }
-    }, 1000);
-}
-
-function finalizarJogo(canal, motivo) {
-    const room = rooms[canal];
-    clearInterval(room.timers);
-
-    let vencedor = null;
-    let msg = "FIM DE JOGO";
-
-    if (motivo === 'checkmate') {
-        const corVencedora = room.game.turn() === 'w' ? 'b' : 'w';
-        vencedor = room.players.find(p => p.cor === corVencedora);
-        msg = `XEQUE-MATE! VITÓRIA DAS ${corVencedora === 'w' ? 'BRANCAS' : 'PRETAS'}`;
-    } else if (motivo === 'timeout') {
-        const corVencedora = room.game.turn() === 'w' ? 'b' : 'w';
-        vencedor = room.players.find(p => p.cor === corVencedora);
-        msg = `TEMPO ESGOTADO! VITÓRIA DAS ${corVencedora === 'w' ? 'BRANCAS' : 'PRETAS'}`;
-    } else {
-        msg = "EMPATE!";
-    }
-
-    if (vencedor) {
-        atualizarRanking(vencedor.nick);
-    }
-
-    io.to(canal).emit('fim_jogo', { msg });
-    io.emit('atualizar_ranking', ranking);
-}
-
-function atualizarRanking(nick) {
-    const user = ranking.find(u => u.nick === nick);
-    if (user) {
-        user.wins++;
-    } else {
-        ranking.push({ nick, wins: 1 });
-    }
-    ranking.sort((a, b) => b.wins - a.wins);
-}
-
-server.listen(3000, () => {
-    console.log('--- Servidor do Caps Rodando em http://localhost:3000 ---');
-});
+const PORT = process.env.PORT || 3000;
+http.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
