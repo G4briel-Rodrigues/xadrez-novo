@@ -327,6 +327,10 @@
             document.getElementById('modal-message').innerText = data.msg;
             sounds.win.play().catch(()=>{});
         });
+        
+        socket.on('atualizar_ranking', (ranking) => {
+            updateRankingUI(ranking);
+        });
 
         function requestRematch() {
             socket.emit('pedir_revanche', { canal: myChannel });
@@ -376,7 +380,20 @@
                         if (piece) {
                             div.innerText = pieceMap[piece.color === 'w' ? piece.type.toUpperCase() : piece.type];
                             div.classList.add(piece.color === 'w' ? 'p-w' : 'p-b');
-                            if (!div.onclick) div.onclick = () => { if (piece.color === myColor && game.turn() === myColor) { selectedSquare =function updateRankingUI(ranking) {
+                            if (!div.onclick) div.onclick = () => { 
+                                if (piece.color === myColor && game.turn() === myColor) { 
+                                    selectedSquare = sqId; 
+                                    renderBoard(); 
+                                } 
+                            };
+                        }
+                    }
+                    boardEl.appendChild(div);
+                }
+            }
+        }
+
+        function updateRankingUI(ranking) {
             document.getElementById('ranking-list').innerHTML = ranking.map((u, i) => 
                 `<div style="margin-bottom:6px; color:#aaa;" class="${i === 0 ? 'rank-leader' : ''}">
                     ${i+1}. <span>${u.nick}</span> 
