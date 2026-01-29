@@ -6,14 +6,14 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        :root { 
-            --red: #ff0000; --gold: #ffd700; --white: #e0e0e0; --bg: #050000; --neon-green: #39FF14; 
+        :root {
+            --red: #ff0000; --gold: #ffd700; --white: #e0e0e0; --bg: #050000; --neon-green: #39FF14;
         }
         * { box-sizing: border-box; }
 
         body {
-            background: var(--bg); color: var(--red); 
-            font-family: 'Courier New', monospace; margin: 0; height: 100vh; 
+            background: var(--bg); color: var(--red);
+            font-family: 'Courier New', monospace; margin: 0; height: 100vh;
             display: flex; align-items: center; justify-content: center; overflow: hidden;
             user-select: none;
         }
@@ -22,7 +22,7 @@
         .emoji-bg { position: absolute; font-size: 1.5rem; opacity: 0.1; animation: float 12s linear infinite; pointer-events: none; z-index: -1; }
         @keyframes float { 0% { transform: translateY(110vh); } 100% { transform: translateY(-10vh); } }
 
-        /* Animação de Shake */
+        /* Animação de Shake (Treme Tela) */
         .shake { animation: shake 0.5s; }
         @keyframes shake {
             0% { transform: translate(1px, 1px) rotate(0deg); }
@@ -36,14 +36,14 @@
         }
 
         /* Ranking Lateral */
-        #ranking-box { 
-            position: absolute; left: 15px; top: 15px; width: 200px; 
+        #ranking-box {
+            position: absolute; left: 15px; top: 15px; width: 200px;
             background: rgba(10,0,0,0.9); padding: 12px; border: 1px solid #400;
             font-size: 12px; z-index: 100; border-radius: 4px;
         }
         .rank-leader { color: var(--gold); text-shadow: 0 0 8px var(--gold); font-weight: bold; }
 
-        /* Chat */
+        /* --- CHAT TURBO NEON --- */
         #chat-container {
             position: absolute; right: 3%; top: 50%; transform: translateY(-50%);
             width: 380px; height: 600px; background: rgba(0,0,0,0.98);
@@ -57,20 +57,20 @@
             color: var(--neon-green); text-shadow: 0 0 8px var(--neon-green);
         }
         #chat-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-        #chat-messages { 
-            flex: 1; overflow-y: auto; padding: 20px; font-size: 14px; color: #fff; 
+        #chat-messages {
+            flex: 1; overflow-y: auto; padding: 20px; font-size: 14px; color: #fff;
             display: flex; flex-direction: column; gap: 10px;
         }
         #chat-messages::-webkit-scrollbar { width: 6px; }
         #chat-messages::-webkit-scrollbar-thumb { background: var(--neon-green); border-radius: 10px; }
         .chat-nick { color: var(--neon-green); font-weight: bold; margin-right: 8px; }
-        #chat-input { 
-            background: #000; border: none; border-top: 3px solid var(--neon-green); 
-            color: var(--neon-green); padding: 18px; outline: none; font-weight: bold; 
+        #chat-input {
+            background: #000; border: none; border-top: 3px solid var(--neon-green);
+            color: var(--neon-green); padding: 18px; outline: none; font-weight: bold;
             font-family: 'Courier New', monospace; font-size: 15px;
         }
 
-        /* Painel Histórico */
+        /* Painel de Histórico */
         #history-panel {
             height: 100px; border-top: 1px solid #333; background: #050505;
             padding: 10px; overflow-y: auto; font-size: 12px; color: #888;
@@ -78,17 +78,18 @@
         }
 
         /* Login */
-        .login-box { 
-            border: 2px solid var(--red); padding: 30px; text-align: center; 
+        .login-box {
+            border: 2px solid var(--red); padding: 30px; text-align: center;
             background: #000; box-shadow: 0 0 30px #500; z-index: 10; width: 350px;
         }
         .server-select-label { display: block; margin-top: 15px; font-weight: bold; color: var(--gold); }
 
-        /* Jogo */
+        /* Área do Jogo */
         #game-screen { display: none; flex-direction: column; align-items: center; }
         
+        /* Timers (Relógio) */
         #timers-container {
-            display: flex; justify-content: space-between; width: 540px; margin-bottom: 10px;
+            display: flex; justify-content: space-between; width: 520px; margin-bottom: 10px;
         }
         .timer-box {
             background: #111; border: 2px solid #333; padding: 10px 20px;
@@ -100,8 +101,9 @@
 
         .info-panel { margin-bottom: 10px; text-align: center; }
         
-        .board { 
-            display: grid; grid-template-columns: repeat(8, 65px); grid-template-rows: repeat(8, 65px); 
+        /* Tabuleiro */
+        .board {
+            display: grid; grid-template-columns: repeat(8, 65px); grid-template-rows: repeat(8, 65px);
             border: 6px solid #222; box-shadow: 0 0 60px rgba(255,0,0,0.2);
         }
         .sq { width: 65px; height: 65px; display: flex; align-items: center; justify-content: center; font-size: 45px; cursor: pointer; position: relative; }
@@ -114,7 +116,7 @@
         .p-w { color: var(--white); text-shadow: 0 0 5px #fff; }
         .p-b { color: var(--red); text-shadow: 0 0 5px #f00; }
 
-        /* Modal */
+        /* Modal Fim de Jogo */
         #game-over-modal {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.9); z-index: 1000;
@@ -151,7 +153,7 @@
         <div id="chat-content">
             <div id="chat-messages"></div>
         </div>
-        <div id="history-panel">📜 CRÔNICA:<br><span id="move-history" style="color:#888; font-size:10px;">...</span></div>
+        <div id="history-panel">📜 CRÔNICA:<br><span id="move-history"></span></div>
         <input type="text" id="chat-input" placeholder="Sussurre para o vazio..." autocomplete="off">
     </div>
 
@@ -178,30 +180,21 @@
 
         <div class="info-panel">
             <div id="identity" style="font-size: 1.5rem; letter-spacing: 2px;"></div>
-            <div id="turn-indicator" style="font-size: 1rem; margin-top: 8px;">Aguardando oponente...</div>
+            <div id="turn-indicator" style="font-size: 1rem; margin-top: 8px;"></div>
         </div>
         <div class="board" id="board"></div>
     </div>
 
     <script>
         const socket = io();
-        const game = new Chess(); // Instância local para validação visual
+        const game = new Chess();
         let myColor = null, myChannel = null, myNick = null;
         let selectedSquare = null, boardOrientation = 'white';
         let isSpectator = false;
 
-        // Efeitos Sonoros
-        const sounds = {
-            move: new Audio('move.mp3'),
-            capture: new Audio('capture.mp3'),
-            win: new Audio('win.mp3'),
-            ambient: new Audio('ambient.mp3')
-        };
-        sounds.ambient.loop = true; sounds.ambient.volume = 0.3;
-
         const pieceMap = { 'p':'♟','r':'♜','n':'♞','b':'♝','q':'♛','k':'♚','P':'♙','R':'♖','N':'♘','B':'♗','Q':'♕','K':'♔' };
 
-        // Animação Fundo
+        // Efeito de fundo
         setInterval(() => {
             const e = document.createElement('div'); e.className = 'emoji-bg';
             e.style.left = Math.random() * 100 + 'vw';
@@ -217,7 +210,6 @@
             if (!nick) return alert("Diga seu nome!");
             myNick = nick;
             socket.emit('entrar', { apelido: nick, senha: pass, canal: channel });
-            sounds.ambient.play().catch(e => {}); 
         }
 
         socket.on('logado', (data) => {
@@ -264,30 +256,25 @@
             chatMsgs.scrollTop = chatMsgs.scrollHeight;
         });
 
-        // Lógica do Jogo
-        socket.on('iniciar_jogo', (data) => { 
-            game.load(data.fen); 
+        socket.on('iniciar_jogo', (data) => {
+            game.load(data.fen);
             document.getElementById('game-over-modal').style.display = 'none';
             document.getElementById('rematch-status').innerText = "";
-            updateStatus(); 
-            renderBoard(); 
+            updateStatus();
+            renderBoard();
             updateHistory();
         });
 
-        socket.on('atualizar_tabuleiro', (data) => { 
-            game.load(data.fen); 
-            selectedSquare = null; 
-            
+        socket.on('atualizar_tabuleiro', (data) => {
+            game.load(data.fen);
+            selectedSquare = null;
             if (data.lastMove) {
-                if (data.lastMove.captured || game.in_check()) {
-                    sounds.capture.play().catch(()=>{});
+                if (data.lastMove.captured) {
                     document.body.classList.add('shake');
                     setTimeout(() => document.body.classList.remove('shake'), 500);
-                } else {
-                    sounds.move.play().catch(()=>{});
                 }
             }
-            updateStatus(); 
+            updateStatus();
             renderBoard(data.lastMove);
             updateHistory();
         });
@@ -295,7 +282,6 @@
         socket.on('sync_time', (times) => {
             const timerW = document.getElementById('timer-w');
             const timerB = document.getElementById('timer-b');
-
             timerW.innerText = formatTime(times.w);
             timerB.innerText = formatTime(times.b);
 
@@ -320,10 +306,7 @@
         socket.on('fim_jogo', (data) => {
             document.getElementById('game-over-modal').style.display = 'flex';
             document.getElementById('modal-message').innerText = data.msg;
-            sounds.win.play().catch(()=>{});
         });
-        
-        socket.on('atualizar_ranking', (ranking) => updateRankingUI(ranking));
 
         function requestRematch() {
             socket.emit('pedir_revanche', { canal: myChannel });
@@ -344,13 +327,12 @@
 
         function updateHistory() {
             const history = game.history();
-            document.getElementById('move-history').innerText = history.join(' | ') || "O silêncio reina.";
+            document.getElementById('move-history').innerText = history.join(' | ');
         }
 
         function renderBoard(lastMove = null) {
             const boardEl = document.getElementById('board');
             boardEl.innerHTML = '';
-            
             const rows = (boardOrientation === 'white') ? [8,7,6,5,4,3,2,1] : [1,2,3,4,5,6,7,8];
             const cols = (boardOrientation === 'white') ? ['a','b','c','d','e','f','g','h'] : ['h','g','f','e','d','c','b','a'];
 
@@ -359,7 +341,6 @@
                     const sqId = c + r;
                     const piece = game.get(sqId);
                     const div = document.createElement('div');
-                    
                     div.className = `sq ${("abcdefgh".indexOf(c) + r) % 2 === 0 ? 'dark' : 'light'}`;
                     
                     if (lastMove && (lastMove.from === sqId || lastMove.to === sqId)) div.classList.add('last-move');
@@ -367,42 +348,31 @@
 
                     if (!isSpectator) {
                         if (selectedSquare) {
-                            const possibleMoves = game.moves({ square: selectedSquare, verbose: true });
-                            const move = possibleMoves.find(m => m.to === sqId);
+                            const move = game.moves({ square: selectedSquare, verbose: true }).find(m => m.to === sqId);
                             if (move) {
                                 div.classList.add('hint');
                                 div.onclick = () => { 
-                                    socket.emit('movimento', { 
-                                        canal: myChannel, 
-                                        from: selectedSquare, 
-                                        to: sqId, 
-                                        cor: myColor, 
-                                        apelido: myNick 
-                                    }); 
+                                    socket.emit('movimento', { canal: myChannel, from: selectedSquare, to: sqId, cor: myColor, apelido: myNick }); 
                                     selectedSquare = null; 
                                 };
                             }
                         }
-
                         if (piece) {
-                            const pieceChar = pieceMap[piece.color === 'w' ? piece.type.toUpperCase() : piece.type];
-                            div.innerText = pieceChar || '?';
+                            div.innerText = pieceMap[piece.color === 'w' ? piece.type.toUpperCase() : piece.type];
                             div.classList.add(piece.color === 'w' ? 'p-w' : 'p-b');
-                            
-                            if (!div.onclick) {
-                                div.onclick = () => { 
-                                    if (piece.color === myColor && game.turn() === myColor) { 
-                                        selectedSquare = (selectedSquare === sqId) ? null : sqId; 
-                                        renderBoard(); 
-                                    } 
-                                };
-                            }
+                            if (!div.onclick) div.onclick = () => { 
+                                if (piece.color === myColor && game.turn() === myColor) { 
+                                    selectedSquare = sqId; 
+                                    renderBoard(); 
+                                } 
+                            };
+                        } else if (!div.onclick) {
+                            div.onclick = () => { selectedSquare = null; renderBoard(); };
                         }
                     } else if (piece) {
                         div.innerText = pieceMap[piece.color === 'w' ? piece.type.toUpperCase() : piece.type];
                         div.classList.add(piece.color === 'w' ? 'p-w' : 'p-b');
                     }
-
                     boardEl.appendChild(div);
                 }
             }
@@ -410,13 +380,15 @@
 
         function updateRankingUI(ranking) {
             if(!ranking) return;
-            document.getElementById('ranking-list').innerHTML = ranking.map((u, i) => 
+            document.getElementById('ranking-list').innerHTML = ranking.map((u, i) =>
                 `<div style="margin-bottom:6px; color:#aaa;" class="${i === 0 ? 'rank-leader' : ''}">
-                    ${i+1}. <span>${u.nick}</span> 
+                    ${i+1}. <span>${u.nick}</span>
                     <span style="float:right; color:var(--gold)">${u.wins}</span>
                 </div>`
             ).join('');
         }
+
+        socket.on('atualizar_ranking', (ranking) => updateRankingUI(ranking));
     </script>
 </body>
 </html>
