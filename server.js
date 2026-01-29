@@ -6,11 +6,8 @@ const fs = require('fs');
 const { Chess } = require('chess.js');
 
 const DB_PATH = './database.json';
-
 let users = {};
-if (fs.existsSync(DB_PATH)) {
-    try { users = JSON.parse(fs.readFileSync(DB_PATH, 'utf8')); } catch (e) { users = {}; }
-}
+if (fs.existsSync(DB_PATH)) { try { users = JSON.parse(fs.readFileSync(DB_PATH, 'utf8')); } catch (e) { users = {}; } }
 function saveDB() { fs.writeFileSync(DB_PATH, JSON.stringify(users, null, 2)); }
 
 const rooms = { 
@@ -23,10 +20,8 @@ const rooms = {
 app.use(express.static(__dirname));
 
 function getRanking() {
-    return Object.keys(users)
-        .map(nick => ({ nick, wins: users[nick].wins || 0 }))
-        .sort((a, b) => b.wins - a.wins)
-        .slice(0, 5);
+    return Object.keys(users).map(nick => ({ nick, wins: users[nick].wins || 0 }))
+        .sort((a, b) => b.wins - a.wins).slice(0, 5);
 }
 
 io.on('connection', (socket) => {
@@ -35,13 +30,16 @@ io.on('connection', (socket) => {
         const room = rooms[canal];
 
         if (!room) return socket.emit('erro', 'Canal inexistente.');
-        if (room.players.length >= 2) return socket.emit('erro', 'Sala cheia.');
+        
+        // VERIFICAÇÃO DE SALA EM USO (2 pessoas)
+        if (room.players.length >= 2) {
+            return socket.emit('erro', 'Este universo já está em uso por duas almas!');
+        }
 
         if (users[apelido]) {
             if (users[apelido].senha !== senha) return socket.emit('erro', 'Senha incorreta.');
         } else {
-            users[apelido] = { senha, wins: 0 };
-            saveDB();
+            users[apelido] = { senha, wins: 0 }; saveDB();
         }
 
         socket.join(canal);
@@ -53,50 +51,35 @@ io.on('connection', (socket) => {
             io.to(canal).emit('iniciar_jogo', { fen: room.game.fen() });
         }
 
-        socket.emit('logado', { 
-            apelido, 
-            cor, 
-            canal, 
-            ranking: getRanking() 
-        });
+        socket.emit('logado', { apelido, cor, canal, ranking: getRanking() });
+    });
+
+    // CHAT ISOLADO POR CANAL
+    socket.on('enviar_msg', (data) => {
+        io.to(data.canal).emit('receber_msg', data);
     });
 
     socket.on('movimento', (data) => {
         const room = rooms[data.canal];
-        if (!room || !room.game) return;
+        if (!room || !room.game || room.game.turn() !== data.cor) return;
 
         try {
-            if (room.game.turn() !== data.cor) return;
-
             const move = room.game.move({ from: data.from, to: data.to, promotion: 'q' });
-
             if (move) {
-                const isGameOver = room.game.isGameOver();
-                io.to(data.canal).emit('atualizar_tabuleiro', { 
-                    fen: room.game.fen(),
-                    lastMove: move,
-                    turn: room.game.turn()
-                });
-
-                if (isGameOver) {
+                io.to(data.canal).emit('atualizar_tabuleiro', { fen: room.game.fen(), lastMove: move });
+                if (room.game.isGameOver()) {
+                    let msg = "EMPATE.";
                     if (room.game.isCheckmate()) {
-                        const winnerColor = move.color; 
-                        const winner = room.players.find((p, i) => (i === 0 && winnerColor === 'w') || (i === 1 && winnerColor === 'b'));
-                        
-                        if (winner) {
-                            users[winner.apelido].wins++;
-                            saveDB();
-                            io.emit('atualizar_ranking', getRanking());
-                            io.to(data.canal).emit('fim_jogo', { msg: `XEQUE-MATE! ${winner.apelido} ceifou a alma do oponente.` });
-                        }
-                    } else {
-                        io.to(data.canal).emit('fim_jogo', { msg: 'EMPATE (Afogamento ou Repetição).' });
+                        users[data.apelido || room.players.find(p => (cor === 'w' ? 0 : 1)).apelido].wins++;
+                        saveDB();
+                        io.emit('atualizar_ranking', getRanking());
+                        msg = `XEQUE-MATE! Uma alma foi ceifada.`;
                     }
-                    room.game = null;
-                    room.players = []; 
+                    io.to(data.canal).emit('fim_jogo', { msg });
+                    room.game = null; room.players = [];
                 }
             }
-        } catch (e) { console.log(e); }
+        } catch (e) {}
     });
 
     socket.on('disconnecting', () => {
