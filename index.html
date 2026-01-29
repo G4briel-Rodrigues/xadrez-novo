@@ -25,14 +25,45 @@
             font-size: 11px; z-index: 100; border-radius: 4px;
         }
 
-        /* Chat Lateral */
+        /* --- NOVO ESTILO DO CHAT LATERAL NEON --- */
         #chat-container {
-            position: absolute; right: 10px; top: 10px; width: 220px; height: 80vh;
-            background: rgba(10,0,0,0.9); border: 1px solid #400; border-radius: 4px;
-            display: none; flex-direction: column; z-index: 100;
+            position: absolute;
+            right: 5%; /* Mais próximo do centro, não tão no canto */
+            top: 50%;
+            transform: translateY(-50%); /* Centraliza verticalmente exato */
+            width: 250px; /* Um pouco mais largo para ler melhor */
+            height: 550px; /* Altura fixa próxima à do tabuleiro */
+            background: rgba(0,0,0,0.95);
+            border: 2px solid var(--neon-green); /* Borda Neon Verde */
+            box-shadow: 0 0 20px rgba(57, 255, 20, 0.3); /* Brilho Neon */
+            border-radius: 8px;
+            display: none; /* Flex quando logado */
+            flex-direction: column;
+            z-index: 100;
         }
-        #chat-messages { flex: 1; overflow-y: auto; padding: 10px; font-size: 12px; color: #ccc; }
-        #chat-input { background: #000; border: none; border-top: 1px solid #400; color: #fff; padding: 10px; outline: none; }
+        .chat-header {
+            padding: 12px;
+            border-bottom: 2px solid var(--neon-green);
+            text-align: center; font-size: 12px; font-weight: bold; letter-spacing: 1px;
+            color: var(--neon-green); text-shadow: 0 0 5px var(--neon-green);
+        }
+        #chat-messages { 
+            flex: 1; overflow-y: auto; padding: 15px; font-size: 13px; color: #fff; 
+            scrollbar-width: thin; scrollbar-color: var(--neon-green) #000;
+        }
+        /* Scrollbar personalizada para combinar */
+        #chat-messages::-webkit-scrollbar { width: 5px; }
+        #chat-messages::-webkit-scrollbar-thumb { background: var(--neon-green); border-radius: 10px; }
+        
+        .chat-nick { color: var(--neon-green); font-weight: bold; text-shadow: 0 0 3px var(--neon-green); }
+
+        #chat-input { 
+            background: #050505; border: none; border-top: 2px solid var(--neon-green); 
+            color: var(--neon-green); padding: 15px; outline: none; font-weight: bold; font-family: monospace;
+        }
+        #chat-input::placeholder { color: rgba(57, 255, 20, 0.5); }
+        #chat-input:focus { background: #0a0a0a; box-shadow: inset 0 0 15px rgba(57,255,20,0.1); }
+        /* ---------------------------------------- */
 
         /* Login */
         .login-box { 
@@ -70,7 +101,8 @@
             flex-direction: column; align-items: center; justify-content: center; text-align: center;
         }
         #modal-message { color: var(--neon-green); font-size: 2rem; font-weight: bold; text-shadow: 0 0 15px var(--neon-green); margin-bottom: 20px; padding: 0 20px; }
-        #modal-btn { background: transparent; border: 2px solid var(--neon-green); color: var(--neon-green); padding: 10px 30px; cursor: pointer; box-shadow: 0 0 10px var(--neon-green); }
+        #modal-btn { background: transparent; border: 2px solid var(--neon-green); color: var(--neon-green); padding: 10px 30px; cursor: pointer; box-shadow: 0 0 10px var(--neon-green); font-family: monospace; font-size: 1.2rem; transition: 0.3s;}
+        #modal-btn:hover { background: var(--neon-green); color: #000; }
 
         input, select, button { width: 100%; padding: 10px; margin: 5px 0; background: #111; border: 1px solid #333; color: #fff; }
         button { background: var(--red); color: #000; font-weight: bold; cursor: pointer; border: none; }
@@ -90,7 +122,7 @@
     </div>
 
     <div id="chat-container">
-        <div style="padding: 5px; border-bottom: 1px solid #400; text-align: center; font-size: 10px; color: var(--gold);">VOZES DO UNIVERSO</div>
+        <div class="chat-header">VOZES DO UNIVERSO</div>
         <div id="chat-messages"></div>
         <input type="text" id="chat-input" placeholder="Diga algo...">
     </div>
@@ -129,7 +161,6 @@
 
         const pieceMap = { 'p':'♟','r':'♜','n':'♞','b':'♝','q':'♛','k':'♚','P':'♙','R':'♖','N':'♘','B':'♗','Q':'♕','K':'♔' };
 
-        // Emojis de fundo
         setInterval(() => {
             const e = document.createElement('div'); e.className = 'emoji-bg';
             e.style.left = Math.random() * 100 + 'vw';
@@ -153,6 +184,7 @@
             boardOrientation = (myColor === 'w') ? 'white' : 'black';
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('game-screen').style.display = 'flex';
+            // Muda para flex para respeitar o novo layout centralizado
             document.getElementById('chat-container').style.display = 'flex';
             
             const idDiv = document.getElementById('identity');
@@ -165,7 +197,6 @@
 
         socket.on('erro', (msg) => alert(msg));
 
-        // Sistema de Chat
         const chatInput = document.getElementById('chat-input');
         chatInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && chatInput.value.trim() !== "") {
@@ -177,13 +208,13 @@
         socket.on('receber_msg', (data) => {
             const chatMsgs = document.getElementById('chat-messages');
             const div = document.createElement('div');
-            div.style.marginBottom = "5px";
-            div.innerHTML = `<span style="color:var(--gold)">${data.nick}:</span> ${data.texto}`;
+            div.style.marginBottom = "8px";
+            // Usa a nova classe para o nick neon
+            div.innerHTML = `<span class="chat-nick">${data.nick}:</span> ${data.texto}`;
             chatMsgs.appendChild(div);
             chatMsgs.scrollTop = chatMsgs.scrollHeight;
         });
 
-        // Lógica de Jogo
         socket.on('iniciar_jogo', (data) => { game.load(data.fen); updateStatus(); renderBoard(); });
         socket.on('atualizar_tabuleiro', (data) => { game.load(data.fen); selectedSquare = null; updateStatus(); renderBoard(data.lastMove); });
         socket.on('fim_jogo', (data) => {
