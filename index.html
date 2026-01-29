@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Xadrez do Caps 👹</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        :root { --red: #ff0000; --gold: #ffd700; --white: #e0e0e0; --bg: #050000; }
+        body {
+            background: var(--bg); color: var(--red); 
+            font-family: 'Courier New', monospace; margin: 0; height: 100vh; 
+            display: flex; align-items: center; justify-content: center; overflow: hidden;
+            user-select: none;
+        }
+
+        /* Ambientação */
+        .emoji-bg { position: absolute; font-size: 1.5rem; opacity: 0.1; animation: float 12s linear infinite; pointer-events: none; z-index: -1; }
+        @keyframes float { 0% { transform: translateY(110vh); } 100% { transform: translateY(-10vh); } }
+
+        /* Ranking Lateral Compacto */
+        #ranking-box { 
+            position: absolute; left: 10px; top: 10px; width: 160px; 
+            background: rgba(10,0,0,0.9); padding: 10px; border: 1px solid #400;
+            font-size: 11px; z-index: 100; border-radius: 4px;
+        }
+        .leader { color: var(--gold); text-shadow: 0 0 5px var(--gold); font-weight: bold; display: block; margin-top: 2px; }
+
+        /* Login */
+        .login-box { 
+            border: 2px solid var(--red); padding: 30px; text-align: center; 
+            background: #000; box-shadow: 0 0 30px #500; z-index: 10;
+        }
+
+        /* Área do Jogo */
+        #game-screen { display: none; flex-direction: column; align-items: center; }
+        .info-panel { margin-bottom: 10px; text-align: center; }
+        
+        /* Tabuleiro Profissional */
+        .board { 
+            display: grid; grid-template-columns: repeat(8, 60px); grid-template-rows: repeat(8, 60px); 
+            border: 5px solid #222; box-shadow: 0 0 50px #200;
+        }
+        .sq { 
+            width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; 
+            font-size: 40px; cursor: pointer; position: relative;
+        }
+        /* Cores do Tabuleiro */
+        .sq.light { background: #2a2a2a; }
+        .sq.dark { background: #110000; }
+        
+        /* Efeitos Visuais */
+        .sq:hover { background: #331111; }
+        .selected { background: #554400 !important; }
+        .last-move { background: rgba(255, 255, 0, 0.2) !important; }
+        
+        /* Dica de movimento (bolinha) */
+        .hint::after {
+            content: ''; width: 15px; height: 15px; background: rgba(0, 255, 0, 0.3);
+            border-radius: 50%; position: absolute;
+        }
+        .capture-hint::after {
+            content: ''; width: 50px; height: 50px; border: 4px solid rgba(255, 0, 0, 0.4);
+            border-radius: 50%; position: absolute; background: transparent;
+        }
+
+        /* Peças */
+        .p-w { color: var(--white); text-shadow: 0 0 5px #fff; }
+        .p-b { color: var(--red); text-shadow: 0 0 5px #f00; }
+
+        input, select, button { width: 100%; padding: 10px; margin: 5px 0; background: #111; border: 1px solid #333; color: #fff; }
+        button { background: var(--red); color: #000; font-weight: bold; cursor: pointer; border: none; }
+        button:hover { filter: brightness(1.2); }
+    </style>
+</head>
+<body>
+    <div id="emojis"></div>
+    
+    <div id="ranking-box">
+        <strong style="color:#fff">🏆 ABISMO</strong><hr style="border:0; border-top:1px solid #333">
+        <div id="ranking-list">Carregando...</div>
+    </div>
+
+    <div id="login-screen" class="login-box">
+        <h1 style="margin:0; font-size: 2rem;">Xadrez do Caps 👹</h1>
+        <p style="font-size:0.8rem; color:#666">REGRAS OFICIAIS • SEM MISERICÓRDIA</p>
+        <input type="text" id="nick" placeholder="Apelido da Alma">
+        <input type="password" id="pass" placeholder="Senha Eterna">
+        <select id="channel">
+            <option>SubMundo</option><option>Recanto dos pecadores</option>
+            <option>Vozes sem fim</option><option>Solidão</option>
+        </select>
+        <button onclick="entrar()">ACEITAR O DESTINO</button>
+    </div>
+
+    <div id="game-screen">
+        <div class="info-panel">
+            <div id="identity" style="font-size: 1.2rem; font-weight: bold;"></div>
+            <div id="turn-indicator" style="font-size: 0.9rem; margin-top: 5px; color: #888;">Aguardando oponente...</div>
+        </div>
+        <div class="board" id="board"></div>
+    </div>
+
+    <script>
+        const socket = io();
+        const game = new Chess(); // Lógica local para validação visual rápida
+        let myColor = null; // 'w' ou 'b'
+        let myChannel = null;
+        let selectedSquare = null;
+        let boardOrientation = 'white'; // Para girar o tabuleiro
+
+        // Mapa de Peças para Emojis
+        const pieceMap = {
+            'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚', // Pretas
+            'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔'  // Brancas
+        };
+
+        // --- SISTEMA DE EMOJIS DE FUNDO ---
+        setInterval(() => {
+            const e = document.createElement('div'); e.className = 'emoji-bg';
+            e.style.left = Math.random() * 100 + 'vw';
+            e.innerText = ['💀','🩸','🔥','👹','⛓️'][Math.floor(Math.random()*5)];
+            document.getElementById('emojis').appendChild(e);
+            setTimeout(() => e.remove(), 12000);
+        }, 800);
+
+        // --- LOGIN ---
+        function entrar() {
+            const nick = document.getElementById('nick').value;
+            const pass = document.getElementById('pass').value;
+            const channel = document.getElementById('channel').value;
+            if (!nick) return alert("Identifique-se!");
+            socket.emit('entrar', { apelido: nick, senha: pass, canal: channel });
+        }
+
+        socket.on('logado', (data) => {
+            myColor = data.cor;
+            myChannel = data.canal;
+            boardOrientation = (myColor === 'w') ? 'white' : 'black';
+            
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('game-screen').style.display = 'flex';
+            
+            const idDiv = document.getElementById('identity');
+            idDiv.innerText = myColor === 'w' ? "VOCÊ É A LUZ (BRANCAS)" : "VOCÊ É A ESCURIDÃO (PRETAS)";
+            idDiv.style.color = myColor === 'w' ? 'var(--white)' : 'var(--red)';
+            
+            updateRankingUI(data.ranking);
+            renderBoard();
+        });
+
+        socket.on('erro', (msg) => alert(msg));
+        
+        // --- LÓGICA DO JOGO ---
+
+        socket.on('iniciar_jogo', (data) => {
+            game.load(data.fen);
+            updateStatus();
+            renderBoard();
+        });
+
+        socket.on('atualizar_tabuleiro', (data) => {
+            game.load(data.fen); // Sincroniza o estado oficial
+            selectedSquare = null;
+            updateStatus();
+            renderBoard(data.lastMove);
+        });
+
+        socket.on('fim_jogo', (data) => {
+            alert(data.msg);
+            location.reload();
+        });
+
+        function updateStatus() {
+            const turnText = (game.turn() === 'w') ? "Vez das BRANCAS" : "Vez das PRETAS";
+            const myTurn = (game.turn() === myColor);
+            const statusDiv = document.getElementById('turn-indicator');
+            
+            if (game.in_check()) {
+                statusDiv.innerHTML = `<span style="color:orange">⚠️ XEQUE!</span> ${turnText}`;
+            } else {
+                statusDiv.innerText = turnText + (myTurn ? " (SUA VEZ)" : " (AGUARDE)");
+            }
+            statusDiv.style.color = myTurn ? "#0f0" : "#888";
+        }
+
+        // --- RENDERIZAÇÃO ---
+        function renderBoard(lastMove = null) {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+
+            // Se eu sou preto, inverto a visualização do tabuleiro
+            const rows = (boardOrientation === 'white') ? [8,7,6,5,4,3,2,1] : [1,2,3,4,5,6,7,8];
+            const cols = (boardOrientation === 'white') ? ['a','b','c','d','e','f','g','h'] : ['h','g','f','e','d','c','b','a'];
+
+            for (let r of rows) {
+                for (let c of cols) {
+                    const squareId = c + r; // ex: 'e4'
+                    const pieceObj = game.get(squareId);
+                    const div = document.createElement('div');
+                    
+                    // Cor da casa (Lógica matemática de xadrez para cor do quadrado)
+                    // Converto letras para numeros para calcular paridade
+                    const colIdx = "abcdefgh".indexOf(c);
+                    const isDark = (colIdx + r) % 2 === 0;
+                    div.className = `sq ${isDark ? 'dark' : 'light'}`;
+                    
+                    // Se for o último movimento, destaca
+                    if (lastMove && (lastMove.from === squareId || lastMove.to === squareId)) {
+                        div.classList.add('last-move');
+                    }
+
+                    // Se estiver selecionado
+                    if (selectedSquare === squareId) div.classList.add('selected');
+
+                    // Dicas de movimento (bolinhas)
+                    if (selectedSquare) {
+                        const moves = game.moves({ square: selectedSquare, verbose: true });
+                        const move = moves.find(m => m.to === squareId);
+                        if (move) {
+                            div.classList.add(move.captured ? 'capture-hint' : 'hint');
+                            div.onclick = () => sendMove(selectedSquare, squareId);
+                        }
+                    }
+
+                    // Renderiza a peça
+                    if (pieceObj) {
+                        // Mapeia w/b para Maiúscula/Minúscula para pegar o emoji certo
+                        const key = pieceObj.color === 'w' ? pieceObj.type.toUpperCase() : pieceObj.type;
+                        div.innerText = pieceMap[key];
+                        div.classList.add(pieceObj.color === 'w' ? 'p-w' : 'p-b');
+                        
+                        // Clique na peça (somente se for minha e minha vez)
+                        if (!div.onclick) { // Se não for um alvo de movimento
+                            div.onclick = () => {
+                                if (pieceObj.color === myColor && game.turn() === myColor) {
+                                    selectedSquare = (selectedSquare === squareId) ? null : squareId;
+                                    renderBoard(lastMove);
+                                }
+                            };
+                        }
+                    } else if (!div.onclick && selectedSquare) {
+                        // Clique no vazio para deselecionar
+                        div.onclick = () => { selectedSquare = null; renderBoard(lastMove); };
+                    }
+
+                    boardEl.appendChild(div);
+                }
+            }
+        }
+
+        function sendMove(from, to) {
+            // Valida localmente primeiro para UI rápida
+            const move = game.move({ from, to, promotion: 'q' });
+            if (move) {
+                // Envia para o servidor validar de verdade
+                socket.emit('movimento', { canal: myChannel, from, to, cor: myColor });
+                renderBoard(); // Re-renderiza local
+            }
+        }
+
+        // --- RANKING ---
+        socket.on('atualizar_ranking', updateRankingUI);
+        function updateRankingUI(ranking) {
+            const list = document.getElementById('ranking-list');
+            list.innerHTML = ranking.map((u, i) => 
+                `<div style="margin-bottom:5px; border-bottom:1px solid #222; padding-bottom:2px;">
+                    <span style="color:#888">${i+1}.</span> ${u.nick} <span style="float:right; color:#ccc">${u.wins}</span>
+                    ${i === 0 ? '<span class="leader">REI DEMÔNIO</span>' : ''}
+                </div>`
+            ).join('');
+        }
+    </script>
+</body>
+</html>
