@@ -7,14 +7,9 @@
     <script src="/socket.io/socket.io.js"></script>
     <style>
         :root { 
-            --red: #ff0000; 
-            --gold: #ffd700; 
-            --white: #e0e0e0; 
-            --bg: #050000; 
-            --neon-green: #39FF14; 
+            --red: #ff0000; --gold: #ffd700; --white: #e0e0e0; --bg: #050000; --neon-green: #39FF14; 
         }
-
-        * { box-sizing: border-box; } /* Previne que bordas "saiam" para fora */
+        * { box-sizing: border-box; }
 
         body {
             background: var(--bg); color: var(--red); 
@@ -27,84 +22,84 @@
         .emoji-bg { position: absolute; font-size: 1.5rem; opacity: 0.1; animation: float 12s linear infinite; pointer-events: none; z-index: -1; }
         @keyframes float { 0% { transform: translateY(110vh); } 100% { transform: translateY(-10vh); } }
 
+        /* Animação de Shake (Treme Tela) */
+        .shake { animation: shake 0.5s; }
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            100% { transform: translate(0, 0) rotate(0deg); }
+        }
+
         /* Ranking Lateral */
         #ranking-box { 
-            position: absolute; left: 15px; top: 15px; width: 180px; 
+            position: absolute; left: 15px; top: 15px; width: 200px; 
             background: rgba(10,0,0,0.9); padding: 12px; border: 1px solid #400;
             font-size: 12px; z-index: 100; border-radius: 4px;
         }
+        .rank-leader { color: var(--gold); text-shadow: 0 0 8px var(--gold); font-weight: bold; }
 
-        /* --- CHAT TURBO NEON (Largo e Centralizado) --- */
+        /* --- CHAT TURBO NEON --- */
         #chat-container {
-            position: absolute;
-            right: 3%; /* Posicionado para não colar na borda da tela */
-            top: 50%;
-            transform: translateY(-50%);
-            width: 380px; /* BEM MAIS LARGO */
-            height: 600px; /* Altura imponente */
-            background: rgba(0,0,0,0.98);
+            position: absolute; right: 3%; top: 50%; transform: translateY(-50%);
+            width: 380px; height: 600px; background: rgba(0,0,0,0.98);
             border: 3px solid var(--neon-green);
-            box-shadow: 0 0 25px rgba(57, 255, 20, 0.4), inset 0 0 10px rgba(57, 255, 20, 0.2);
-            border-radius: 12px;
-            display: none; 
-            flex-direction: column;
-            z-index: 100;
-            overflow: hidden; /* Garante que nada saia para fora */
+            box-shadow: 0 0 25px rgba(57, 255, 20, 0.4); border-radius: 12px;
+            display: none; flex-direction: column; z-index: 100; overflow: hidden;
         }
-
         .chat-header {
-            padding: 15px;
-            background: rgba(57, 255, 20, 0.05);
-            border-bottom: 3px solid var(--neon-green); /* Linha interna fixa */
-            text-align: center; 
-            font-size: 14px; 
-            font-weight: bold; 
-            letter-spacing: 2px;
-            color: var(--neon-green); 
-            text-shadow: 0 0 8px var(--neon-green);
+            padding: 15px; border-bottom: 3px solid var(--neon-green);
+            text-align: center; font-size: 14px; font-weight: bold; letter-spacing: 2px;
+            color: var(--neon-green); text-shadow: 0 0 8px var(--neon-green);
         }
-
+        #chat-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
         #chat-messages { 
-            flex: 1; 
-            overflow-y: auto; 
-            padding: 20px; 
-            font-size: 14px; 
-            color: #fff; 
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            scrollbar-width: thin; 
-            scrollbar-color: var(--neon-green) #000;
+            flex: 1; overflow-y: auto; padding: 20px; font-size: 14px; color: #fff; 
+            display: flex; flex-direction: column; gap: 10px;
         }
-
         #chat-messages::-webkit-scrollbar { width: 6px; }
         #chat-messages::-webkit-scrollbar-thumb { background: var(--neon-green); border-radius: 10px; }
-        
-        .chat-nick { color: var(--neon-green); font-weight: bold; text-shadow: 0 0 5px var(--neon-green); margin-right: 8px; }
-
+        .chat-nick { color: var(--neon-green); font-weight: bold; margin-right: 8px; }
         #chat-input { 
-            background: #000; 
-            border: none; 
-            border-top: 3px solid var(--neon-green); 
-            color: var(--neon-green); 
-            padding: 18px; 
-            outline: none; 
-            font-weight: bold; 
-            font-family: 'Courier New', monospace;
-            font-size: 15px;
+            background: #000; border: none; border-top: 3px solid var(--neon-green); 
+            color: var(--neon-green); padding: 18px; outline: none; font-weight: bold; 
+            font-family: 'Courier New', monospace; font-size: 15px;
         }
-        #chat-input::placeholder { color: rgba(57, 255, 20, 0.3); }
+
+        /* Painel de Histórico */
+        #history-panel {
+            height: 100px; border-top: 1px solid #333; background: #050505;
+            padding: 10px; overflow-y: auto; font-size: 12px; color: #888;
+            border-top: 2px solid var(--neon-green);
+        }
 
         /* Login */
         .login-box { 
             border: 2px solid var(--red); padding: 30px; text-align: center; 
             background: #000; box-shadow: 0 0 30px #500; z-index: 10; width: 350px;
         }
-        .server-select-label { display: block; margin-top: 15px; font-weight: bold; color: var(--gold); text-shadow: 0 0 5px #f00; }
-        
+        .server-select-label { display: block; margin-top: 15px; font-weight: bold; color: var(--gold); }
+
         /* Área do Jogo */
         #game-screen { display: none; flex-direction: column; align-items: center; }
-        .info-panel { margin-bottom: 20px; text-align: center; }
+        
+        /* Timers (Relógio) */
+        #timers-container {
+            display: flex; justify-content: space-between; width: 540px; margin-bottom: 10px;
+        }
+        .timer-box {
+            background: #111; border: 2px solid #333; padding: 10px 20px;
+            font-size: 1.5rem; color: #fff; border-radius: 5px; min-width: 120px; text-align: center;
+        }
+        .timer-active { border-color: var(--neon-green); box-shadow: 0 0 15px var(--neon-green); color: var(--neon-green); }
+        .timer-danger { border-color: red; color: red; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        .info-panel { margin-bottom: 10px; text-align: center; }
         
         /* Tabuleiro */
         .board { 
@@ -121,17 +116,19 @@
         .p-w { color: var(--white); text-shadow: 0 0 5px #fff; }
         .p-b { color: var(--red); text-shadow: 0 0 5px #f00; }
 
-        /* Modais */
+        /* Modal Fim de Jogo */
         #game-over-modal {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.9); z-index: 1000;
             flex-direction: column; align-items: center; justify-content: center;
         }
-        #modal-message { color: var(--neon-green); font-size: 2.5rem; font-weight: bold; text-shadow: 0 0 20px var(--neon-green); margin-bottom: 30px; }
-        #modal-btn { background: transparent; border: 2px solid var(--neon-green); color: var(--neon-green); padding: 15px 40px; cursor: pointer; font-size: 1.2rem; }
+        #modal-message { color: var(--neon-green); font-size: 2.5rem; font-weight: bold; text-shadow: 0 0 20px var(--neon-green); margin-bottom: 30px; text-align: center;}
+        .modal-buttons { display: flex; gap: 20px; }
+        .btn-modal { background: transparent; border: 2px solid var(--neon-green); color: var(--neon-green); padding: 15px 30px; cursor: pointer; font-size: 1.2rem; transition: 0.3s; }
+        .btn-modal:hover { background: var(--neon-green); color: #000; }
 
         input, select, button { width: 100%; padding: 12px; margin: 5px 0; background: #111; border: 1px solid #333; color: #fff; }
-        button { background: var(--red); color: #000; font-weight: bold; cursor: pointer; }
+        button { background: var(--red); color: #000; font-weight: bold; cursor: pointer; border: none; }
     </style>
 </head>
 <body>
@@ -139,7 +136,11 @@
     
     <div id="game-over-modal">
         <div id="modal-message"></div>
-        <button id="modal-btn" onclick="location.reload()">VOLTAR AO VAZIO</button>
+        <div class="modal-buttons">
+            <button class="btn-modal" onclick="requestRematch()">PEDIR REVANCHE</button>
+            <button class="btn-modal" onclick="location.reload()" style="border-color: #f00; color:#f00;">FUGIR</button>
+        </div>
+        <div id="rematch-status" style="margin-top:10px; color:#888;"></div>
     </div>
 
     <div id="ranking-box">
@@ -149,17 +150,18 @@
 
     <div id="chat-container">
         <div class="chat-header">VOZES DO UNIVERSO</div>
-        <div id="chat-messages"></div>
+        <div id="chat-content">
+            <div id="chat-messages"></div>
+        </div>
+        <div id="history-panel">📜 CRÔNICA:<br><span id="move-history"></span></div>
         <input type="text" id="chat-input" placeholder="Sussurre para o vazio..." autocomplete="off">
     </div>
 
     <div id="login-screen" class="login-box">
         <h1 style="margin:0; font-size: 2.2rem; text-shadow: 0 0 10px #f00;">Xadrez do Caps 👹</h1>
         <p style="font-size:0.8rem; color:#666; margin-bottom: 20px;">ENTRE POR SUA CONTA E RISCO</p>
-        
         <input type="text" id="nick" placeholder="Nome da Alma">
         <input type="password" id="pass" placeholder="Senha de Acesso">
-        
         <label class="server-select-label">DIMENSÃO DE DESTINO:</label>
         <select id="channel">
             <option value="SubMundo">🔥 SubMundo</option>
@@ -167,11 +169,15 @@
             <option value="Vozes sem fim">💀 Vozes sem fim</option>
             <option value="Solidão">⛓️ Solidão</option>
         </select>
-        
         <button onclick="entrar()" style="margin-top: 15px;">INICIAR RITUAL</button>
     </div>
 
     <div id="game-screen">
+        <div id="timers-container">
+            <div id="timer-b" class="timer-box">03:00</div>
+            <div id="timer-w" class="timer-box">03:00</div>
+        </div>
+
         <div class="info-panel">
             <div id="identity" style="font-size: 1.5rem; letter-spacing: 2px;"></div>
             <div id="turn-indicator" style="font-size: 1rem; margin-top: 8px;"></div>
@@ -184,9 +190,20 @@
         const game = new Chess();
         let myColor = null, myChannel = null, myNick = null;
         let selectedSquare = null, boardOrientation = 'white';
+        let isSpectator = false;
+
+        // Configuração dos Sons
+        const sounds = {
+            move: new Audio('move.mp3'),
+            capture: new Audio('capture.mp3'),
+            win: new Audio('win.mp3'),
+            ambient: new Audio('ambient.mp3')
+        };
+        sounds.ambient.loop = true; sounds.ambient.volume = 0.3;
 
         const pieceMap = { 'p':'♟','r':'♜','n':'♞','b':'♝','q':'♛','k':'♚','P':'♙','R':'♖','N':'♘','B':'♗','Q':'♕','K':'♔' };
 
+        // Efeito de fundo
         setInterval(() => {
             const e = document.createElement('div'); e.className = 'emoji-bg';
             e.style.left = Math.random() * 100 + 'vw';
@@ -202,20 +219,31 @@
             if (!nick) return alert("Diga seu nome!");
             myNick = nick;
             socket.emit('entrar', { apelido: nick, senha: pass, canal: channel });
+            
+            // Tenta dar play no som ambiente
+            sounds.ambient.play().catch(e => console.log("Áudio aguardando interação"));
         }
 
         socket.on('logado', (data) => {
             myColor = data.cor;
             myChannel = data.canal;
-            boardOrientation = (myColor === 'w') ? 'white' : 'black';
+            isSpectator = (data.cor === 'spectator');
+
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('game-screen').style.display = 'flex';
             document.getElementById('chat-container').style.display = 'flex';
             
             const idDiv = document.getElementById('identity');
-            idDiv.innerText = myColor === 'w' ? "VOCÊ É A LUZ" : "VOCÊ É A ESCURIDÃO";
-            idDiv.style.color = myColor === 'w' ? 'var(--white)' : 'var(--red)';
-            idDiv.style.textShadow = myColor === 'w' ? '0 0 10px #fff' : '0 0 10px #f00';
+            if (isSpectator) {
+                idDiv.innerText = "VOCÊ É UM FANTASMA";
+                idDiv.style.color = "#888";
+                boardOrientation = 'white';
+            } else {
+                boardOrientation = (myColor === 'w') ? 'white' : 'black';
+                idDiv.innerText = myColor === 'w' ? "VOCÊ É A LUZ" : "VOCÊ É A ESCURIDÃO";
+                idDiv.style.color = myColor === 'w' ? 'var(--white)' : 'var(--red)';
+                idDiv.style.textShadow = myColor === 'w' ? '0 0 10px #fff' : '0 0 10px #f00';
+            }
             
             updateRankingUI(data.ranking);
             renderBoard();
@@ -223,6 +251,7 @@
 
         socket.on('erro', (msg) => alert(msg));
 
+        // Chat Logic
         const chatInput = document.getElementById('chat-input');
         chatInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && chatInput.value.trim() !== "") {
@@ -239,11 +268,73 @@
             chatMsgs.scrollTop = chatMsgs.scrollHeight;
         });
 
-        socket.on('iniciar_jogo', (data) => { game.load(data.fen); updateStatus(); renderBoard(); });
-        socket.on('atualizar_tabuleiro', (data) => { game.load(data.fen); selectedSquare = null; updateStatus(); renderBoard(data.lastMove); });
+        // Game Update Logic
+        socket.on('iniciar_jogo', (data) => { 
+            game.load(data.fen); 
+            document.getElementById('game-over-modal').style.display = 'none';
+            document.getElementById('rematch-status').innerText = "";
+            updateStatus(); 
+            renderBoard(); 
+            updateHistory();
+        });
+
+        socket.on('atualizar_tabuleiro', (data) => { 
+            game.load(data.fen); 
+            selectedSquare = null; 
+            
+            if (data.lastMove) {
+                if (data.lastMove.captured || game.in_check()) {
+                    sounds.capture.play().catch(()=>{});
+                    document.body.classList.add('shake');
+                    setTimeout(() => document.body.classList.remove('shake'), 500);
+                } else {
+                    sounds.move.play().catch(()=>{});
+                }
+            }
+
+            updateStatus(); 
+            renderBoard(data.lastMove);
+            updateHistory();
+        });
+
+        socket.on('sync_time', (times) => {
+            const timerW = document.getElementById('timer-w');
+            const timerB = document.getElementById('timer-b');
+
+            timerW.innerText = formatTime(times.w);
+            timerB.innerText = formatTime(times.b);
+
+            if (game.turn() === 'w') {
+                timerW.classList.add('timer-active');
+                timerB.classList.remove('timer-active');
+            } else {
+                timerB.classList.add('timer-active');
+                timerW.classList.remove('timer-active');
+            }
+            
+            if (times.w < 30) timerW.classList.add('timer-danger'); else timerW.classList.remove('timer-danger');
+            if (times.b < 30) timerB.classList.add('timer-danger'); else timerB.classList.remove('timer-danger');
+        });
+
+        function formatTime(s) {
+            const min = Math.floor(s / 60);
+            const sec = s % 60;
+            return `${min < 10 ? '0'+min : min}:${sec < 10 ? '0'+sec : sec}`;
+        }
+
         socket.on('fim_jogo', (data) => {
             document.getElementById('game-over-modal').style.display = 'flex';
             document.getElementById('modal-message').innerText = data.msg;
+            sounds.win.play().catch(()=>{});
+        });
+
+        function requestRematch() {
+            socket.emit('pedir_revanche', { canal: myChannel });
+            document.getElementById('rematch-status').innerText = "Pedido enviado...";
+        }
+        
+        socket.on('revanche_solicitada', (msg) => {
+            document.getElementById('rematch-status').innerText = msg;
         });
 
         function updateStatus() {
@@ -252,6 +343,11 @@
             const statusDiv = document.getElementById('turn-indicator');
             statusDiv.innerHTML = game.in_check() ? `<span style="color:orange; font-weight:bold;">⚠️ XEQUE!</span> ${turnText}` : turnText;
             statusDiv.style.color = myTurn ? "var(--neon-green)" : "#555";
+        }
+
+        function updateHistory() {
+            const history = game.history();
+            document.getElementById('move-history').innerText = history.join(' | ');
         }
 
         function renderBoard(lastMove = null) {
@@ -269,30 +365,23 @@
                     if (lastMove && (lastMove.from === sqId || lastMove.to === sqId)) div.classList.add('last-move');
                     if (selectedSquare === sqId) div.classList.add('selected');
 
-                    if (selectedSquare) {
-                        const move = game.moves({ square: selectedSquare, verbose: true }).find(m => m.to === sqId);
-                        if (move) {
-                            div.classList.add('hint');
-                            div.onclick = () => { socket.emit('movimento', { canal: myChannel, from: selectedSquare, to: sqId, cor: myColor, apelido: myNick }); selectedSquare = null; };
+                    if (!isSpectator) {
+                        if (selectedSquare) {
+                            const move = game.moves({ square: selectedSquare, verbose: true }).find(m => m.to === sqId);
+                            if (move) {
+                                div.classList.add('hint');
+                                div.onclick = () => { socket.emit('movimento', { canal: myChannel, from: selectedSquare, to: sqId, cor: myColor, apelido: myNick }); selectedSquare = null; };
+                            }
                         }
-                    }
-
-                    if (piece) {
-                        div.innerText = pieceMap[piece.color === 'w' ? piece.type.toUpperCase() : piece.type];
-                        div.classList.add(piece.color === 'w' ? 'p-w' : 'p-b');
-                        if (!div.onclick) div.onclick = () => { if (piece.color === myColor && game.turn() === myColor) { selectedSquare = (selectedSquare === sqId) ? null : sqId; renderBoard(lastMove); } };
-                    } else if (!div.onclick && selectedSquare) {
-                        div.onclick = () => { selectedSquare = null; renderBoard(lastMove); };
-                    }
-                    boardEl.appendChild(div);
-                }
-            }
-        }
-
-        socket.on('atualizar_ranking', updateRankingUI);
-        function updateRankingUI(ranking) {
+                        if (piece) {
+                            div.innerText = pieceMap[piece.color === 'w' ? piece.type.toUpperCase() : piece.type];
+                            div.classList.add(piece.color === 'w' ? 'p-w' : 'p-b');
+                            if (!div.onclick) div.onclick = () => { if (piece.color === myColor && game.turn() === myColor) { selectedSquare =function updateRankingUI(ranking) {
             document.getElementById('ranking-list').innerHTML = ranking.map((u, i) => 
-                `<div style="margin-bottom:6px; color:#aaa;">${i+1}. <span style="color:var(--red)">${u.nick}</span> <span style="float:right; color:var(--gold)">${u.wins}</span></div>`
+                `<div style="margin-bottom:6px; color:#aaa;" class="${i === 0 ? 'rank-leader' : ''}">
+                    ${i+1}. <span>${u.nick}</span> 
+                    <span style="float:right; color:var(--gold)">${u.wins}</span>
+                </div>`
             ).join('');
         }
     </script>
